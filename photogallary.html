@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dynamic Photo Gallery</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      xintegrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
+      crossorigin="anonymous"
+    />
+    <!-- Font Awesome for Download Icon -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
+      xintegrity="sha512-z3gLPD7yG55p7m35fH9Lz5kC5/a5mP8Fm5a5W5g5y5y5y5y5y5y5y5y5y5y5y5y5y5y5y5y5y5y5y5y5y5y5y5y5y5y5"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <style>
+      /* Custom CSS for the gallery */
+      body {
+        background-color: #f8f9fa;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+
+      .gallery-container {
+        max-width: 1200px;
+        margin: auto;
+      }
+
+      /* Masonry Grid Layout */
+      .gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        grid-gap: 15px;
+      }
+
+      .gallery-item {
+        position: relative;
+        cursor: pointer;
+        border-radius: 12px;
+        overflow: hidden;
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+      }
+
+      .gallery-item:hover {
+        transform: scale(1.03);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+      }
+
+      .gallery-item img {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .photo-overlay {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 15px;
+        background: linear-gradient(
+          to top,
+          rgba(0, 0, 0, 0.7),
+          rgba(0, 0, 0, 0)
+        );
+        color: #fff;
+        transition: opacity 0.3s ease;
+        opacity: 0;
+      }
+
+      .gallery-item:hover .photo-overlay {
+        opacity: 1;
+      }
+
+      .filter-buttons {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 2rem;
+      }
+
+      .filter-buttons .btn {
+        border-radius: 50px;
+        padding: 8px 25px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+      }
+
+      .filter-buttons .btn.active {
+        background-color: #0d6efd;
+        color: white;
+        box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+      }
+
+      .modal-content {
+        border-radius: 1rem;
+        background-color: #212529;
+      }
+
+      .modal-body {
+        padding: 0;
+        position: relative;
+      }
+
+      #modal-image {
+        border-radius: 1rem;
+        max-width: 100%;
+        height: auto;
+      }
+
+      .download-button-container {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+      }
+
+      .search-bar {
+        margin-bottom: 2rem;
+      }
+
+      .loading-indicator {
+        text-align: center;
+        padding: 2rem;
+        font-size: 1.5rem;
+        color: #6c757d;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container gallery-container my-5">
+      <h1 class="text-center mb-5 fw-bold text-dark">Dynamic Photo Gallery</h1>
+
+      <!-- Search Bar -->
+      <div class="input-group search-bar mb-3">
+        <input
+          type="text"
+          class="form-control"
+          id="search-input"
+          placeholder="Search for photos..."
+        />
+        <button class="btn btn-primary" type="button" id="search-btn">
+          Search
+        </button>
+      </div>
+
+      <!-- Filter Buttons -->
+      <div class="filter-buttons">
+        <button class="btn btn-outline-primary active" data-filter="all">
+          All
+        </button>
+        <button class="btn btn-outline-primary" data-filter="nature">
+          Nature
+        </button>
+        <button class="btn btn-outline-primary" data-filter="city">City</button>
+        <button class="btn btn-outline-primary" data-filter="animals">
+          Animals
+        </button>
+        <button class="btn btn-outline-primary" data-filter="people">
+          People
+        </button>
+      </div>
+
+      <!-- Photo Gallery Container -->
+      <div class="gallery-grid" id="gallery-container">
+        <div class="loading-indicator">
+          Please enter a search term and press Search.
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal for Full-size Photo View -->
+    <div
+      class="modal fade"
+      id="photoModal"
+      tabindex="-1"
+      aria-labelledby="photoModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-body text-center">
+            <img
+              src=""
+              class="img-fluid"
+              id="modal-image"
+              alt="Full-size Photo"
+            />
+            <div class="download-button-container">
+              <button
+                id="download-btn"
+                class="btn btn-light rounded-circle shadow-sm"
+              >
+                <i class="fa-solid fa-download"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+      xintegrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+      crossorigin="anonymous"
+    ></script>
+
+    <script>
+      // --- API Integration Section ---
+
+      // This is where you would place your API key for a service like Pexels or Unsplash.
+      // Replace "YOUR_PEXELS_API_KEY" with your actual key.
+      const apiKey = "OZ3yiy0mTbzy96YExx4gxirsLeFqiX7EkT5s46bjH7vb5Cb3j3OL2CLZ";
+
+      // A simple cache to store API responses and avoid repeated calls for the same term
+      const photoCache = {};
+
+      /**
+       * Fetches photos from the Pexels API based on a search term.
+       * @param {string} searchTerm The term to search for.
+       */
+      async function fetchPhotos(searchTerm) {
+        // Check cache first
+        if (photoCache[searchTerm]) {
+          return photoCache[searchTerm];
+        }
+
+        // Hide gallery and show a loading indicator
+        galleryContainer.innerHTML =
+          '<div class="loading-indicator">Loading images...</div>';
+
+        try {
+          const response = await fetch(
+            `https://api.pexels.com/v1/search?query=${searchTerm}&per_page=30`,
+            {
+              headers: {
+                Authorization: apiKey,
+              },
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          // Store the result in the cache
+          photoCache[searchTerm] = data.photos;
+          return data.photos;
+        } catch (error) {
+          console.error("Failed to fetch photos from Pexels API:", error);
+          galleryContainer.innerHTML =
+            '<div class="loading-indicator text-danger">Failed to load images. Please check the API key and try again.</div>';
+          return [];
+        }
+      }
+
+      // --- Gallery Logic Section ---
+
+      // Get references to DOM elements
+      const galleryContainer = document.getElementById("gallery-container");
+      const filterButtons = document.querySelectorAll(".filter-buttons .btn");
+      const modalImage = document.getElementById("modal-image");
+      const photoModal = new bootstrap.Modal(
+        document.getElementById("photoModal")
+      );
+      const downloadBtn = document.getElementById("download-btn");
+      const searchInput = document.getElementById("search-input");
+      const searchBtn = document.getElementById("search-btn");
+
+      /**
+       * Renders photos to the gallery based on the provided array.
+       * @param {Array} photosArray The array of photo objects from the API.
+       */
+      function displayPhotos(photosArray) {
+        galleryContainer.innerHTML = ""; // Clear existing photos
+
+        if (photosArray.length === 0) {
+          galleryContainer.innerHTML =
+            '<div class="loading-indicator">No images found for this search.</div>';
+          return;
+        }
+
+        photosArray.forEach((photo) => {
+          const colDiv = document.createElement("div");
+          colDiv.className = "gallery-item";
+
+          // Use an image and an overlay for the title
+          colDiv.innerHTML = `
+          <img src="${photo.src.medium}" alt="${photo.alt}" loading="lazy">
+          <div class="photo-overlay">
+            <h5 class="fw-bold">${photo.alt}</h5>
+          </div>
+        `;
+
+          // Add a click event listener to open the modal with the full-size image
+          colDiv.addEventListener("click", () => {
+            modalImage.src = photo.src.large;
+            photoModal.show();
+          });
+
+          galleryContainer.appendChild(colDiv);
+        });
+      }
+
+      // Add click event listeners to all filter buttons
+      filterButtons.forEach((button) => {
+        button.addEventListener("click", async () => {
+          // Remove 'active' class from all buttons and add it to the clicked one
+          filterButtons.forEach((btn) => btn.classList.remove("active"));
+          button.classList.add("active");
+
+          // Get the filter category from the data-filter attribute
+          const searchTerm = button.dataset.filter;
+          searchInput.value = ""; // Clear search input
+
+          const photos = await fetchPhotos(searchTerm);
+          displayPhotos(photos);
+        });
+      });
+
+      // Add event listeners for the search button and Enter key
+      searchBtn.addEventListener("click", async () => {
+        const searchTerm = searchInput.value;
+        if (!searchTerm) return;
+
+        filterButtons.forEach((btn) => btn.classList.remove("active")); // Deactivate filter buttons
+
+        const photos = await fetchPhotos(searchTerm);
+        displayPhotos(photos);
+      });
+
+      searchInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          searchBtn.click();
+        }
+      });
+
+      // Add a click event listener to the download button
+      downloadBtn.addEventListener("click", () => {
+        // Get the current image source from the modal
+        const imageUrl = modalImage.src;
+
+        // Create a temporary link element
+        const link = document.createElement("a");
+        link.href = imageUrl;
+
+        // Set the download attribute with a filename
+        link.download = `photo_${Date.now()}.jpeg`;
+
+        // Append the link to the body and trigger the download
+        document.body.appendChild(link);
+        link.click();
+
+        // Clean up by removing the temporary link
+        document.body.removeChild(link);
+      });
+    </script>
+  </body>
+</html>
