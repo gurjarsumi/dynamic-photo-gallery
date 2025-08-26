@@ -11,7 +11,7 @@
       xintegrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
       crossorigin="anonymous"
     />
-    <!-- Font Awesome for Download Icon -->
+    <!-- Font Awesome for Download & Favorite Icons -->
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
@@ -122,6 +122,21 @@
         z-index: 1000;
       }
 
+      .favorite-icon {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        font-size: 1.5rem;
+        color: #fff;
+        text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+        cursor: pointer;
+        transition: color 0.2s ease;
+      }
+
+      .favorite-icon.active {
+        color: #e30000;
+      }
+
       .search-bar {
         margin-bottom: 2rem;
       }
@@ -156,6 +171,9 @@
         <button class="btn btn-outline-primary active" data-filter="all">
           All
         </button>
+        <button class="btn btn-outline-primary" data-filter="favorites">
+          Favorites
+        </button>
         <button class="btn btn-outline-primary" data-filter="nature">
           Nature
         </button>
@@ -173,6 +191,17 @@
         <div class="loading-indicator">
           Please enter a search term and press Search.
         </div>
+      </div>
+
+      <!-- Load More Button -->
+      <div class="text-center mt-4">
+        <button
+          class="btn btn-primary"
+          id="load-more-btn"
+          style="display: none"
+        >
+          Load More
+        </button>
       </div>
     </div>
 
@@ -215,31 +244,27 @@
 
     <script>
       // --- API Integration Section ---
-
-      // This is where you would place your API key for a service like Pexels or Unsplash.
-      // Replace "YOUR_PEXELS_API_KEY" with your actual key.
       const apiKey = "OZ3yiy0mTbzy96YExx4gxirsLeFqiX7EkT5s46bjH7vb5Cb3j3OL2CLZ";
-
-      // A simple cache to store API responses and avoid repeated calls for the same term
-      const photoCache = {};
+      let currentPage = 1;
+      let currentSearchTerm = "";
+      const favoritePhotos = new Set(); // Using a Set for efficient lookups
 
       /**
-       * Fetches photos from the Pexels API based on a search term.
+       * Fetches photos from the Pexels API based on a search term and page number.
        * @param {string} searchTerm The term to search for.
+       * @param {number} page The page number to fetch.
        */
-      async function fetchPhotos(searchTerm) {
-        // Check cache first
-        if (photoCache[searchTerm]) {
-          return photoCache[searchTerm];
+      async function fetchPhotos(searchTerm, page = 1) {
+        if (!searchTerm) {
+          galleryContainer.innerHTML =
+            '<div class="loading-indicator">Please enter a search term and press Search.</div>';
+          loadMoreBtn.style.display = "none";
+          return;
         }
-
-        // Hide gallery and show a loading indicator
-        galleryContainer.innerHTML =
-          '<div class="loading-indicator">Loading images...</div>';
 
         try {
           const response = await fetch(
-            `https://api.pexels.com/v1/search?query=${searchTerm}&per_page=30`,
+            `https://api.pexels.com/v1/search?query=${searchTerm}&per_page=15&page=${page}`,
             {
               headers: {
                 Authorization: apiKey,
@@ -252,21 +277,17 @@
           }
 
           const data = await response.json();
-
-          // Store the result in the cache
-          photoCache[searchTerm] = data.photos;
           return data.photos;
         } catch (error) {
           console.error("Failed to fetch photos from Pexels API:", error);
           galleryContainer.innerHTML =
             '<div class="loading-indicator text-danger">Failed to load images. Please check the API key and try again.</div>';
+          loadMoreBtn.style.display = "none";
           return [];
         }
       }
 
       // --- Gallery Logic Section ---
-
-      // Get references to DOM elements
       const galleryContainer = document.getElementById("gallery-container");
       const filterButtons = document.querySelectorAll(".filter-buttons .btn");
       const modalImage = document.getElementById("modal-image");
@@ -276,17 +297,25 @@
       const downloadBtn = document.getElementById("download-btn");
       const searchInput = document.getElementById("search-input");
       const searchBtn = document.getElementById("search-btn");
+      const loadMoreBtn = document.getElementById("load-more-btn");
 
       /**
        * Renders photos to the gallery based on the provided array.
        * @param {Array} photosArray The array of photo objects from the API.
+       * @param {boolean} clearGallery Whether to clear the gallery before rendering.
        */
-      function displayPhotos(photosArray) {
-        galleryContainer.innerHTML = ""; // Clear existing photos
+      function displayPhotos(photosArray, clearGallery = false) {
+        if (clearGallery) {
+          galleryContainer.innerHTML = "";
+        }
 
-        if (photosArray.length === 0) {
+        if (
+          photosArray.length === 0 &&
+          galleryContainer.children.length === 0
+        ) {
           galleryContainer.innerHTML =
             '<div class="loading-indicator">No images found for this search.</div>';
+          loadMoreBtn.style.display = "none";
           return;
         }
 
@@ -294,15 +323,25 @@
           const colDiv = document.createElement("div");
           colDiv.className = "gallery-item";
 
-          // Use an image and an overlay for the title
+          const isFavorite = favoritePhotos.has(photo.id);
+          const favoriteIconClass = isFavorite ? "fa-solid" : "fa-regular";
+
           colDiv.innerHTML = `
           <img src="${photo.src.medium}" alt="${photo.alt}" loading="lazy">
           <div class="photo-overlay">
             <h5 class="fw-bold">${photo.alt}</h5>
           </div>
+          <i class="${favoriteIconClass} fa-heart favorite-icon" data-photo-id="${photo.id}" data-photo-url="${photo.src.large}" data-photo-alt="${photo.alt}"></i>
         `;
 
-          // Add a click event listener to open the modal with the full-size image
+          // Add favorite button listener
+          const favoriteBtn = colDiv.querySelector(".favorite-icon");
+          favoriteBtn.addEventListener("click", (e) => {
+            e.stopPropagation(); // Prevents the modal from opening
+            toggleFavorite(photo.id, photo);
+          });
+
+          // Add modal listener
           colDiv.addEventListener("click", () => {
             modalImage.src = photo.src.large;
             photoModal.show();
@@ -310,21 +349,71 @@
 
           galleryContainer.appendChild(colDiv);
         });
+
+        if (photosArray.length > 0) {
+          loadMoreBtn.style.display = "block";
+        }
+      }
+
+      /**
+       * Toggles a photo as a favorite and updates the icon.
+       * @param {number} photoId The ID of the photo to toggle.
+       * @param {object} photoData The full photo object.
+       */
+      function toggleFavorite(photoId, photoData) {
+        const favoriteIcon = document.querySelector(
+          `.favorite-icon[data-photo-id="${photoId}"]`
+        );
+        if (favoritePhotos.has(photoId)) {
+          favoritePhotos.delete(photoId);
+          if (favoriteIcon) {
+            favoriteIcon.classList.remove("fa-solid");
+            favoriteIcon.classList.add("fa-regular");
+          }
+        } else {
+          favoritePhotos.add(photoId);
+          if (favoriteIcon) {
+            favoriteIcon.classList.remove("fa-regular");
+            favoriteIcon.classList.add("fa-solid");
+          }
+        }
       }
 
       // Add click event listeners to all filter buttons
       filterButtons.forEach((button) => {
         button.addEventListener("click", async () => {
-          // Remove 'active' class from all buttons and add it to the clicked one
           filterButtons.forEach((btn) => btn.classList.remove("active"));
           button.classList.add("active");
 
-          // Get the filter category from the data-filter attribute
-          const searchTerm = button.dataset.filter;
-          searchInput.value = ""; // Clear search input
+          currentSearchTerm = button.dataset.filter;
+          currentPage = 1;
+          searchInput.value = "";
 
-          const photos = await fetchPhotos(searchTerm);
-          displayPhotos(photos);
+          if (currentSearchTerm === "favorites") {
+            loadMoreBtn.style.display = "none";
+            const favoritePhotosArray = Array.from(favoritePhotos)
+              .map((id) => {
+                const photoElement = document.querySelector(
+                  `.favorite-icon[data-photo-id="${id}"]`
+                );
+                if (photoElement) {
+                  return {
+                    id: id,
+                    src: {
+                      medium: photoElement.dataset.photoUrl,
+                      large: photoElement.dataset.photoUrl,
+                    },
+                    alt: photoElement.dataset.photoAlt,
+                  };
+                }
+                return null;
+              })
+              .filter((photo) => photo !== null);
+            displayPhotos(favoritePhotosArray, true);
+          } else {
+            const photos = await fetchPhotos(currentSearchTerm, currentPage);
+            displayPhotos(photos, true);
+          }
         });
       });
 
@@ -333,10 +422,12 @@
         const searchTerm = searchInput.value;
         if (!searchTerm) return;
 
-        filterButtons.forEach((btn) => btn.classList.remove("active")); // Deactivate filter buttons
+        filterButtons.forEach((btn) => btn.classList.remove("active"));
+        currentSearchTerm = searchTerm;
+        currentPage = 1;
 
-        const photos = await fetchPhotos(searchTerm);
-        displayPhotos(photos);
+        const photos = await fetchPhotos(currentSearchTerm, currentPage);
+        displayPhotos(photos, true);
       });
 
       searchInput.addEventListener("keypress", (e) => {
@@ -347,23 +438,21 @@
 
       // Add a click event listener to the download button
       downloadBtn.addEventListener("click", () => {
-        // Get the current image source from the modal
         const imageUrl = modalImage.src;
-
-        // Create a temporary link element
         const link = document.createElement("a");
         link.href = imageUrl;
-
-        // Set the download attribute with a filename
         link.download = `photo_${Date.now()}.jpeg`;
-
-        // Append the link to the body and trigger the download
         document.body.appendChild(link);
         link.click();
-
-        // Clean up by removing the temporary link
         document.body.removeChild(link);
       });
-    </script>
+
+      // Add event listener for the "Load More" button
+      loadMoreBtn.addEventListener("click", async () => {
+        currentPage++;
+        const photos = await fetchPhotos(currentSearchTerm, currentPage);
+        displayPhotos(photos);
+      });
+    </script
   </body>
 </html>
